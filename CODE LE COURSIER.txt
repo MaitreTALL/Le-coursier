@@ -1,0 +1,429 @@
+import 'package:flutter/material.dart';
+
+void main() => runApp(MyApp());
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Task Manager Pro',
+      theme: AppTheme.lightTheme,
+      home: HomeScreen(),
+    );
+  }
+}
+
+class AppTheme {
+  static final lightTheme = ThemeData(
+    colorScheme: ColorScheme.light(
+      primary: Color(0xFF2A5C82),
+      secondary: Color(0xFF4CAF50),
+    fontFamily: 'Inter',
+    inputDecorationTheme: InputDecorationTheme(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final List<Task> _tasks = [];
+  final TextEditingController _searchController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tasks.addAll([
+      Task('Créer maquette Figma', '08:00 - 09:00 AM', false, Priority.high),
+      Task('Réunion marketing', '10:00 - 11:30 AM', true, Priority.medium),
+      Task('Développer composant', '01:00 - 03:00 PM', false, Priority.high),
+      Task('Révision spécifications', '04:00 - 05:00 PM', false, Priority.low),
+    ]);
+  }
+
+  double get _progressValue {
+    final completed = _tasks.where((task) => task.isCompleted).length;
+    return completed / _tasks.length;
+  }
+
+  void _addTask(Task newTask) {
+    setState(() {
+      _tasks.insert(0, newTask);
+    });
+  }
+
+  void _deleteTask(int index) {
+    setState(() {
+      _tasks.removeAt(index);
+    });
+  }
+
+  void _showTaskForm({Task? existingTask, int? index}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => TaskForm(
+        onSave: (newTask) {
+          if (existingTask != null && index != null) {
+            setState(() => _tasks[index] = newTask);
+          } else {
+            _addTask(newTask);
+          }
+        },
+        existingTask: existingTask,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredTasks = _tasks.where((task) =>
+      task.title.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.menu, color: Theme.of(context).colorScheme.primary),
+          onPressed: () => _showAppMenu(context),
+        ),
+        title: const SizedBox(),
+        actions: [
+          IconButton(
+            icon: CircleAvatar(
+              backgroundImage: NetworkImage(
+                'https://randomuser.me/api/portraits/women/68.jpg'),
+            ),
+            onPressed: () => _showProfile(context),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            SizedBox(height: 24),
+            _buildProgressSection(),
+            SizedBox(height: 24),
+            _buildTaskList(filteredTasks),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showTaskForm(),
+        child: Icon(Icons.add),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        prefixIcon: Icon(Icons.search),
+        hintText: 'Rechercher une tâche...',
+        suffixIcon: IconButton(
+          icon: Icon(Icons.clear),
+          onPressed: () {
+            _searchController.clear();
+            setState(() => _searchQuery = '');
+          },
+        ),
+      ),
+      onChanged: (value) => setState(() => _searchQuery = value),
+    );
+  }
+
+  Widget _buildProgressSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Progression du jour', 
+             style: Theme.of(context).textTheme.headline6),
+        SizedBox(height: 12),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            LinearProgressIndicator(
+              value: _progressValue,
+              minHeight: 24,
+              borderRadius: BorderRadius.circular(12),
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary),
+            ),
+            Positioned(
+              child: Text('${(_progressValue * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskList(List<Task> tasks) {
+    return Expanded(
+      child: ListView.builder(
+        itemCount: tasks.length,
+        itemBuilder: (context, index) => _buildTaskCard(tasks[index], index),
+    );
+  }
+
+  Widget _buildTaskCard(Task task, int index) {
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Checkbox(
+          value: task.isCompleted,
+          onChanged: (value) => setState(() => task.isCompleted = value!),
+          activeColor: Theme.of(context).colorScheme.secondary,
+        ),
+        title: Text(task.title,
+            style: TextStyle(
+              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+              fontWeight: FontWeight.w600)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(task.time),
+            SizedBox(height: 4),
+            Chip(
+              label: Text(task.priority.label),
+              backgroundColor: task.priority.color.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: task.priority.color,
+                fontSize: 12),
+            ),
+          ],
+        ),
+        trailing: PopupMenuButton(
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              child: Text('Modifier'),
+              value: 'edit',
+            ),
+            PopupMenuItem(
+              child: Text('Supprimer', style: TextStyle(color: Colors.red)),
+              value: 'delete',
+            ),
+          ],
+          onSelected: (value) {
+            if (value == 'edit') _showTaskForm(existingTask: task, index: index);
+            if (value == 'delete') _deleteTask(index);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showAppMenu(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Menu'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.settings),
+              title: Text('Paramètres'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: Icon(Icons.help),
+              title: Text('Aide'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProfile(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundImage: NetworkImage(
+                'https://randomuser.me/api/portraits/women/68.jpg'),
+            ),
+            SizedBox(height: 16),
+            Text('Marie Dupont', style: Theme.of(context).textTheme.headline6),
+            Text('marie.dupont@entreprise.com'),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Fermer le profil'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TaskForm extends StatefulWidget {
+  final Function(Task) onSave;
+  final Task? existingTask;
+
+  TaskForm({required this.onSave, this.existingTask});
+
+  @override
+  _TaskFormState createState() => _TaskFormState();
+}
+
+class _TaskFormState extends State<TaskForm> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _titleController;
+  late TextEditingController _timeController;
+  late Priority _selectedPriority;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(
+      text: widget.existingTask?.title ?? '');
+    _timeController = TextEditingController(
+      text: widget.existingTask?.time ?? '');
+    _selectedPriority = widget.existingTask?.priority ?? Priority.medium;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: InputDecoration(labelText: 'Titre de la tâche'),
+                validator: (value) => 
+                  value!.isEmpty ? 'Ce champ est obligatoire' : null,
+              ),
+              SizedBox(height: 16),
+              TextFormField(
+                controller: _timeController,
+                decoration: InputDecoration(
+                  labelText: 'Heure',
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.access_time),
+                    onPressed: () => _selectTime(context),
+                  ),
+                ),
+                validator: (value) => 
+                  value!.isEmpty ? 'Ce champ est obligatoire' : null,
+              ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<Priority>(
+                value: _selectedPriority,
+                items: Priority.values.map((priority) =>
+                  DropdownMenuItem(
+                    value: priority,
+                    child: Text(priority.label),
+                  )).toList(),
+                onChanged: (value) => _selectedPriority = value!,
+                decoration: InputDecoration(labelText: 'Priorité'),
+              ),
+              SizedBox(height: 24),
+              ElevatedButton.icon(
+                icon: Icon(Icons.save),
+                label: Text('Enregistrer'),
+                onPressed: _submitForm,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      _timeController.text = 
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final newTask = Task(
+        _titleController.text,
+        _timeController.text,
+        false,
+        _selectedPriority,
+      );
+      widget.onSave(newTask);
+      Navigator.pop(context);
+    }
+  }
+}
+
+class Task {
+  String title;
+  String time;
+  bool isCompleted;
+  Priority priority;
+
+  Task(this.title, this.time, this.isCompleted, this.priority);
+}
+
+enum Priority {
+  high,
+  medium,
+  low,
+}
+
+extension PriorityExtension on Priority {
+  String get label {
+    switch (this) {
+      case Priority.high: return 'Haute';
+      case Priority.medium: return 'Moyenne';
+      case Priority.low: return 'Basse';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case Priority.high: return Colors.red;
+      case Priority.medium: return Colors.orange;
+      case Priority.low: return Colors.green;
+    }
+  }
+}
